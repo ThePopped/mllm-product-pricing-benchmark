@@ -68,6 +68,36 @@ Single-command orchestration
   artifacts/pipeline/<run_id>/run_summary.json
   artifacts/pipeline/<run_id>/pipeline.log
 
+Online serving (FastAPI)
+------------------------
+- Start API server:
+  python src/serve_api.py --config config/defaults.yaml
+
+- Health and readiness:
+  GET /healthz
+  GET /readyz
+
+- Serving contract:
+  GET /v1/schema
+    Returns numeric fields (must be > 0) and allowed categorical values
+    observed in training metadata (`models/category_meta.json`).
+
+  POST /v1/predict
+    Body:
+      {
+        "numeric_field": "width",
+        "numeric_value": 210.0,
+        "categorical_field": "brand",
+        "categorical_value": "Julian Bowen"
+      }
+    Response includes predicted price plus model lineage identifiers.
+
+- UI integration pattern:
+  1) Call /v1/schema to populate dropdowns.
+  2) Let user pick one numeric field + positive value.
+  3) Let user pick one categorical field + allowed value.
+  4) Send POST /v1/predict.
+
 Notes
 -----
 - Scraper and extraction logs/artifacts are written under artifacts/.

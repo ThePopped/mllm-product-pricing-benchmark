@@ -1,0 +1,220 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, model_validator
+
+from build_features import build_features
+from inference_service import ModelBundle, load_bundle
+from load_data import load_records
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class PredictRequest(BaseModel):
+    numeric_field: str = Field(description="Numeric feature name to override.")
+    numeric_value: float = Field(description="Numeric value to score with (must be > 0).")
+    categorical_field: str = Field(description="Categorical feature name to override.")
+    categorical_value: Any = Field(description="Categorical value observed in training data.")
+
+    @model_validator(mode="after")
+    def validate_positive_numeric(self) -> "PredictRequest":
+        if self.numeric_value <= 0:
+            raise ValueError("numeric_value must be greater than 0.")
+        return self
+
+
+class PredictResponse(BaseModel):
+    predicted_price: float
+    model_version: str | None = None
+    train_run_id: str | None = None
+    data_split_id: str | None = None
+
+
+def _align_columns_for_model(model: Any, features: pd.DataFrame) -> pd.DataFrame:
+    names = list(getattr(model, "feature_names_in_", []))
+    if not names:
+        return features
+    missing = [name for name in names if name not in features.columns]
+    if missing:
+        raise ValueError(f"Missing required model input columns: {missing}")
+    return features.loc[:, names]
+
+
+def _is_numeric_series(series: pd.Series) -> bool:
+    return pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series)
+
+
+def _build_baseline_features(bundle: ModelBundle, train_path: Path) -> pd.DataFrame:
+    if not train_path.exists():
+        raise FileNotFoundError(f"Training data not found for serving template: {train_path}")
+    records = load_records(train_path)
+    if not records:
+        raise ValueError(f"No parsed_json records found in: {train_path}")
+
+    features = build_features(records, category_meta=bundle.category_meta, keep_price=False)
+    features = _align_columns_for_model(bundle.model, features)
+    defaults: dict[str, Any] = {}
+
+    for col in features.columns:
+        s = features[col].dropna()
+        if _is_numeric_series(features[col]):
+            vals = pd.to_numeric(s, errors="coerce").dropna()
+            if vals.empty:
+                defaults[col] = 1.0
+            else:
+                positive_vals = vals[vals > 0]
+                defaults[col] = float((positive_vals if not positive_vals.empty else vals).median())
+        else:
+            mode = s.mode(dropna=True)
+            if not mode.empty:
+                defaults[col] = mode.iloc[0]
+            elif pd.api.types.is_categorical_dtype(features[col]) and len(features[col].cat.categories) > 0:
+                defaults[col] = features[col].cat.categories[0]
+            else:
+                defaults[col] = None
+
+    baseline = pd.DataFrame([defaults], columns=list(features.columns))
+    for col in features.select_dtypes(include="category").columns:
+        baseline[col] = pd.Categorical(baseline[col], categories=features[col].cat.categories)
+    return baseline
+
+
+def _build_schema_payload(bundle: ModelBundle, baseline: pd.DataFrame) -> dict[str, Any]:
+    numeric_fields = {
+        col: {"min_exclusive": 0.0, "default": float(baseline.iloc[0][col])}
+        for col in baseline.columns
+        if _is_numeric_series(baseline[col])
+    }
+    categorical_fields = {
+        col: values
+        for col, values in bundle.category_meta.items()
+        if col in baseline.columns and values
+    }
+    return {
+        "numeric_fields": numeric_fields,
+        "categorical_fields": categorical_fields,
+        "model_version": bundle.lineage.get("model_version"),
+        "train_run_id": bundle.lineage.get("train_run_id"),
+        "data_split_id": bundle.lineage.get("data_split_id"),
+    }
+
+
+def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
+    cfg = load_config(config_path)
+    paths_cfg = cfg.get("paths", {})
+    serving_cfg = cfg.get("serving", {})
+
+    model_path = cfg_path(ROOT, paths_cfg.get("model_out"), ROOT / "models" / "best_model.pkl")
+    meta_path = cfg_path(ROOT, paths_cfg.get("meta_out"), ROOT / "models" / "category_meta.json")
+    lineage_path = cfg_path(ROOT, paths_cfg.get("lineage_out"), ROOT / "models" / "lineage.json")
+    train_path = cfg_path(ROOT, paths_cfg.get("train_jsonl"), ROOT / "data" / "processed" / "train.jsonl")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        try:
+            bundle = load_bundle(model_path=model_path, meta_path=meta_path, lineage_path=lineage_path)
+            baseline = _build_baseline_features(bundle, train_path=train_path)
+            _app.state.bundle = bundle
+            _app.state.baseline = baseline
+            _app.state.schema = _build_schema_payload(bundle, baseline)
+            _app.state.ready = True
+            _app.state.ready_error = None
+        except Exception as exc:  # pragma: no cover
+            _app.state.bundle = None
+            _app.state.baseline = None
+            _app.state.schema = None
+            _app.state.ready = False
+            _app.state.ready_error = str(exc)
+        yield
+
+    app = FastAPI(
+        title=str(serving_cfg.get("title", "Sofa Price Serving API")),
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+
+    cors_origins = serving_cfg.get("cors_origins", [])
+    if isinstance(cors_origins, list) and cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[str(origin) for origin in cors_origins],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    app.state.ready = False
+    app.state.ready_error = None
+    app.state.bundle = None
+    app.state.baseline = None
+    app.state.schema = None
+
+    @app.get("/healthz")
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/readyz")
+    def readyz() -> dict[str, Any]:
+        if app.state.ready:
+            return {"ready": True}
+        return {"ready": False, "error": app.state.ready_error}
+
+    @app.get("/v1/schema")
+    def schema() -> dict[str, Any]:
+        if not app.state.ready:
+            raise HTTPException(status_code=503, detail=f"Model not ready: {app.state.ready_error}")
+        return app.state.schema
+
+    @app.post("/v1/predict", response_model=PredictResponse)
+    def predict(req: PredictRequest) -> PredictResponse:
+        if not app.state.ready:
+            raise HTTPException(status_code=503, detail=f"Model not ready: {app.state.ready_error}")
+
+        schema_payload = app.state.schema
+        numeric_fields = schema_payload["numeric_fields"]
+        categorical_fields = schema_payload["categorical_fields"]
+
+        if req.numeric_field not in numeric_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown numeric_field '{req.numeric_field}'. Use /v1/schema.",
+            )
+        if req.categorical_field not in categorical_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown categorical_field '{req.categorical_field}'. Use /v1/schema.",
+            )
+
+        allowed_values = categorical_fields[req.categorical_field]
+        if req.categorical_value not in allowed_values:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid categorical_value '{req.categorical_value}' for field "
+                    f"'{req.categorical_field}'. Use /v1/schema."
+                ),
+            )
+
+        row = app.state.baseline.copy(deep=True)
+        row.at[row.index[0], req.numeric_field] = float(req.numeric_value)
+        row.at[row.index[0], req.categorical_field] = req.categorical_value
+        preds = app.state.bundle.model.predict(row)
+
+        return PredictResponse(
+            predicted_price=float(preds[0]),
+            model_version=app.state.bundle.lineage.get("model_version"),
+            train_run_id=app.state.bundle.lineage.get("train_run_id"),
+            data_split_id=app.state.bundle.lineage.get("data_split_id"),
+        )
+
+    return app
+
+
+app = create_app()

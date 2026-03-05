@@ -6,14 +6,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import joblib
 import mlflow
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from build_features import build_features
-from lineage_utils import read_lineage
+from inference_service import load_bundle, predict_records
 from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 DEFAULT_INPUT = ROOT / "data" / "processed" / "holdout.jsonl"
@@ -99,12 +97,10 @@ def main() -> None:
     if not records:
         raise ValueError(f"No records found in input file: {args.input}")
 
-    model = joblib.load(args.model)
-    category_meta = json.loads(args.meta.read_text(encoding="utf-8"))
-    X = build_features(records, category_meta=category_meta, keep_price=False)
-    preds = model.predict(X)
+    bundle = load_bundle(args.model, args.meta, args.lineage_file)
+    preds = predict_records(bundle, records)
 
-    lineage = read_lineage(args.lineage_file) if args.lineage_file.exists() else {}
+    lineage = bundle.lineage
     mlflow.set_experiment(args.experiment)
     with mlflow.start_run(run_name=args.run_name):
         mlflow.set_tag("stage", "inference")
