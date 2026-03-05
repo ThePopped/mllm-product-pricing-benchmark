@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sofa Price Predictor</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; max-width: 760px; }
+    h1 { margin-bottom: 4px; }
+    p { color: #444; }
+    form { display: grid; gap: 12px; margin-top: 20px; }
+    label { font-weight: 600; display: grid; gap: 6px; }
+    select, input, button { padding: 8px; font-size: 14px; }
+    button { width: 180px; cursor: pointer; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; }
+    .muted { color: #666; font-size: 13px; }
+    .error { color: #a00; }
+  </style>
+</head>
+<body>
+  <h1>Sofa Price Predictor</h1>
+  <p>Pick one numeric input (> 0) and one category observed in training data.</p>
+
+  <form id="predict-form">
+    <label>
+      Numeric field
+      <select id="numeric-field"></select>
+    </label>
+
+    <label>
+      Numeric value (> 0)
+      <input id="numeric-value" type="number" min="0.0000001" step="any" required>
+    </label>
+
+    <label>
+      Categorical field
+      <select id="categorical-field"></select>
+    </label>
+
+    <label>
+      Categorical value
+      <select id="categorical-value"></select>
+    </label>
+
+    <label class="muted">
+      <input id="show-all" type="checkbox">
+      Show all category values (default shows top values only)
+    </label>
+
+    <button type="submit">Predict price</button>
+    <div id="status" class="muted"></div>
+  </form>
+
+  <div id="result" class="card" style="display:none;"></div>
+
+  <script>
+    const numericFieldEl = document.getElementById("numeric-field");
+    const numericValueEl = document.getElementById("numeric-value");
+    const categoricalFieldEl = document.getElementById("categorical-field");
+    const categoricalValueEl = document.getElementById("categorical-value");
+    const showAllEl = document.getElementById("show-all");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+
+    let schema = null;
+    const numericValueByField = {};
+    const categoricalValueByField = {};
+    let prevNumericField = null;
+    let prevCategoricalField = null;
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.className = isError ? "error" : "muted";
+    }
+
+    function fillSelect(selectEl, values) {
+      selectEl.innerHTML = "";
+      values.forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = String(v);
+        opt.textContent = String(v);
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function currentCategoryValues() {
+      const field = categoricalFieldEl.value;
+      if (!field) return [];
+      if (showAllEl.checked) {
+        return schema.categorical_fields_all[field] || [];
+      }
+      return schema.categorical_fields_top[field] || [];
+    }
+
+    function getNumericDefault(field) {
+      const def = schema.numeric_fields[field]?.default;
+      return (typeof def === "number" && Number.isFinite(def)) ? String(def) : "";
+    }
+
+    function refreshCategoryValuesPreserve() {
+      const field = categoricalFieldEl.value;
+      const values = currentCategoryValues();
+      const remembered = categoricalValueByField[field];
+      const current = categoricalValueEl.value;
+      fillSelect(categoricalValueEl, values);
+      const candidate = [remembered, current].find((v) => values.includes(v));
+      if (candidate) {
+        categoricalValueEl.value = candidate;
+      } else if (values.length > 0) {
+        categoricalValueEl.value = String(values[0]);
+      }
+      if (field) {
+        categoricalValueByField[field] = categoricalValueEl.value;
+      }
+    }
+
+    async function init() {
+      try {
+        setStatus("Loading schema...");
+        const res = await fetch("/v1/schema");
+        if (!res.ok) {
+          throw new Error("Schema request failed: " + res.status);
+        }
+        schema = await res.json();
+
+        const numericFields = Object.keys(schema.numeric_fields || {});
+        const categoricalFields = Object.keys(schema.categorical_fields_top || {});
+
+        fillSelect(numericFieldEl, numericFields);
+        fillSelect(categoricalFieldEl, categoricalFields);
+        refreshCategoryValuesPreserve();
+
+        if (numericFields.length > 0) {
+          const field = numericFields[0];
+          numericValueEl.value = getNumericDefault(field);
+          numericValueByField[field] = numericValueEl.value;
+          prevNumericField = field;
+        }
+
+        if (categoricalFields.length > 0) {
+          const field = categoricalFields[0];
+          categoricalValueByField[field] = categoricalValueEl.value;
+          prevCategoricalField = field;
+        }
+
+        numericFieldEl.addEventListener("change", () => {
+          if (prevNumericField) {
+            numericValueByField[prevNumericField] = numericValueEl.value;
+          }
+          const field = numericFieldEl.value;
+          numericValueEl.value = numericValueByField[field] ?? getNumericDefault(field);
+          prevNumericField = field;
+        });
+
+        numericValueEl.addEventListener("input", () => {
+          const field = numericFieldEl.value;
+          if (field) numericValueByField[field] = numericValueEl.value;
+        });
+
+        categoricalFieldEl.addEventListener("change", () => {
+          if (prevCategoricalField) {
+            categoricalValueByField[prevCategoricalField] = categoricalValueEl.value;
+          }
+          refreshCategoryValuesPreserve();
+          prevCategoricalField = categoricalFieldEl.value;
+        });
+
+        showAllEl.addEventListener("change", refreshCategoryValuesPreserve);
+
+        categoricalValueEl.addEventListener("change", () => {
+          const field = categoricalFieldEl.value;
+          if (field) categoricalValueByField[field] = categoricalValueEl.value;
+        });
+        setStatus("Ready.");
+      } catch (err) {
+        setStatus("Failed to initialize UI: " + err.message, true);
+      }
+    }
+
+    document.getElementById("predict-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      resultEl.style.display = "none";
+
+      const payload = {
+        numeric_field: numericFieldEl.value,
+        numeric_value: Number(numericValueEl.value),
+        categorical_field: categoricalFieldEl.value,
+        categorical_value: categoricalValueEl.value
+      };
+
+      try {
+        setStatus("Requesting prediction...");
+        const res = await fetch("/v1/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.detail || ("Predict request failed: " + res.status));
+        }
+
+        resultEl.innerHTML =
+          "<h3>Prediction</h3>" +
+          "<p><strong>Predicted price:</strong> " + body.predicted_price.toFixed(2) + "</p>" +
+          "<p class='muted'>model_version: " + (body.model_version || "n/a") + "</p>" +
+          "<p class='muted'>train_run_id: " + (body.train_run_id || "n/a") + "</p>" +
+          "<p class='muted'>data_split_id: " + (body.data_split_id || "n/a") + "</p>";
+        resultEl.style.display = "block";
+        setStatus("Prediction complete.");
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

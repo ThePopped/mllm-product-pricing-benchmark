@@ -99,7 +99,13 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
         assert schema.status_code == 200
         payload = schema.json()
         assert "width" in payload["numeric_fields"]
-        assert "brand" in payload["categorical_fields"]
+        assert "brand" in payload["categorical_fields_all"]
+        assert "brand" in payload["categorical_fields_top"]
+        assert payload["top_k_categories"] == 10
+        assert len(payload["categorical_fields_top"]["brand"]) <= payload["top_k_categories"]
+
+        ui = client.get("/")
+        assert ui.status_code == 200
 
         pred = client.post(
             "/v1/predict",

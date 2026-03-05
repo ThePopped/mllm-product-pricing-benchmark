@@ -2,19 +2,24 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+import sys
 from typing import Any
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_features import build_features
 from inference_service import ModelBundle, load_bundle
 from load_data import load_records
 from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
-ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_INDEX = ROOT / "frontend" / "index.html"
 
 
 class PredictRequest(BaseModel):
@@ -86,20 +91,54 @@ def _build_baseline_features(bundle: ModelBundle, train_path: Path) -> pd.DataFr
     return baseline
 
 
-def _build_schema_payload(bundle: ModelBundle, baseline: pd.DataFrame) -> dict[str, Any]:
+def _build_top_categories(records: list[dict], all_categories: dict[str, list], top_k: int) -> dict[str, list]:
+    if top_k <= 0:
+        return {col: [] for col in all_categories}
+
+    train_df = pd.json_normalize(records) if records else pd.DataFrame()
+    top_categories: dict[str, list] = {}
+
+    for col, allowed in all_categories.items():
+        ranked: list[Any] = []
+        if col in train_df.columns:
+            observed_ranked = train_df[col].dropna().value_counts().index.tolist()
+            ranked = [v for v in observed_ranked if v in allowed]
+
+        top = ranked[:top_k]
+        if len(top) < min(top_k, len(allowed)):
+            # Backfill from allowed values to ensure deterministic options.
+            top.extend([v for v in allowed if v not in top][: top_k - len(top)])
+        top_categories[col] = top
+
+    return top_categories
+
+
+def _build_schema_payload(
+    bundle: ModelBundle,
+    baseline: pd.DataFrame,
+    records: list[dict],
+    top_k_categories: int,
+) -> dict[str, Any]:
     numeric_fields = {
         col: {"min_exclusive": 0.0, "default": float(baseline.iloc[0][col])}
         for col in baseline.columns
         if _is_numeric_series(baseline[col])
     }
-    categorical_fields = {
+    categorical_fields_all = {
         col: values
         for col, values in bundle.category_meta.items()
         if col in baseline.columns and values
     }
+    categorical_fields_top = _build_top_categories(
+        records=records,
+        all_categories=categorical_fields_all,
+        top_k=top_k_categories,
+    )
     return {
         "numeric_fields": numeric_fields,
-        "categorical_fields": categorical_fields,
+        "categorical_fields_all": categorical_fields_all,
+        "categorical_fields_top": categorical_fields_top,
+        "top_k_categories": top_k_categories,
         "model_version": bundle.lineage.get("model_version"),
         "train_run_id": bundle.lineage.get("train_run_id"),
         "data_split_id": bundle.lineage.get("data_split_id"),
@@ -110,6 +149,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
     cfg = load_config(config_path)
     paths_cfg = cfg.get("paths", {})
     serving_cfg = cfg.get("serving", {})
+    top_k_categories = int(serving_cfg.get("top_k_categories", 10))
 
     model_path = cfg_path(ROOT, paths_cfg.get("model_out"), ROOT / "models" / "best_model.pkl")
     meta_path = cfg_path(ROOT, paths_cfg.get("meta_out"), ROOT / "models" / "category_meta.json")
@@ -119,11 +159,14 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         try:
+            records = load_records(train_path)
+            if not records:
+                raise ValueError(f"No parsed_json records found in: {train_path}")
             bundle = load_bundle(model_path=model_path, meta_path=meta_path, lineage_path=lineage_path)
             baseline = _build_baseline_features(bundle, train_path=train_path)
             _app.state.bundle = bundle
             _app.state.baseline = baseline
-            _app.state.schema = _build_schema_payload(bundle, baseline)
+            _app.state.schema = _build_schema_payload(bundle, baseline, records, top_k_categories)
             _app.state.ready = True
             _app.state.ready_error = None
         except Exception as exc:  # pragma: no cover
@@ -160,6 +203,12 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        if not FRONTEND_INDEX.exists():
+            raise HTTPException(status_code=404, detail=f"Frontend not found: {FRONTEND_INDEX}")
+        return FileResponse(FRONTEND_INDEX)
+
     @app.get("/readyz")
     def readyz() -> dict[str, Any]:
         if app.state.ready:
@@ -179,7 +228,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
 
         schema_payload = app.state.schema
         numeric_fields = schema_payload["numeric_fields"]
-        categorical_fields = schema_payload["categorical_fields"]
+        categorical_fields = schema_payload["categorical_fields_all"]
 
         if req.numeric_field not in numeric_fields:
             raise HTTPException(

@@ -73,14 +73,20 @@ Online serving (FastAPI)
 - Start API server:
   python src/serve_api.py --config config/defaults.yaml
 
+- Open minimal web UI:
+  http://127.0.0.1:8000/
+
 - Health and readiness:
   GET /healthz
   GET /readyz
 
 - Serving contract:
   GET /v1/schema
-    Returns numeric fields (must be > 0) and allowed categorical values
-    observed in training metadata (`models/category_meta.json`).
+    Returns numeric fields (must be > 0), plus:
+    - categorical_fields_top: top-K most common values per categorical field
+      (K configured by `serving.top_k_categories`, default 10)
+    - categorical_fields_all: all allowed values observed in training metadata
+      (`models/category_meta.json`)
 
   POST /v1/predict
     Body:
@@ -93,7 +99,7 @@ Online serving (FastAPI)
     Response includes predicted price plus model lineage identifiers.
 
 - UI integration pattern:
-  1) Call /v1/schema to populate dropdowns.
+  1) Call /v1/schema to populate dropdowns (use top values by default).
   2) Let user pick one numeric field + positive value.
   3) Let user pick one categorical field + allowed value.
   4) Send POST /v1/predict.

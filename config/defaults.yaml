@@ -50,4 +50,5 @@ serving:
   title: Sofa Price Serving API
   host: 0.0.0.0
   port: 8000
+  top_k_categories: 10
   cors_origins: []

@@ -9,3 +9,6 @@ jsonschema
 mlflow
 joblib
 pyyaml
+fastapi
+uvicorn
+httpx
