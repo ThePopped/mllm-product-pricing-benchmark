@@ -1,0 +1,8 @@
+artifacts/
+screenshots/
+scrape.log
+progress.json
+cf_state.json
+*.tmp
+__pycache__/
+*.pyc

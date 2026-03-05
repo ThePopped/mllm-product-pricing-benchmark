@@ -1,0 +1,10 @@
+playwright
+pandas
+torch
+transformers
+bitsandbytes
+Pillow
+scikit-learn
+jsonschema
+mlflow
+joblib

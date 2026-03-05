@@ -1,0 +1,10 @@
+{
+  "timestamp_utc": "2026-03-05T14:17:19.468361+00:00",
+  "train_run_id": "f851e6c525874b7ba5027b53b967bab3",
+  "data_split_id": "b3a6b5273afe2fe2",
+  "model_version": "model-f851e6c5",
+  "train_data_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\data\\processed\\train.jsonl",
+  "holdout_data_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\data\\processed\\holdout.jsonl",
+  "model_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\models\\best_model.pkl",
+  "meta_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\models\\category_meta.json"
+}
