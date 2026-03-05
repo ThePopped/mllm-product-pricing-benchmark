@@ -7,6 +7,8 @@ paths:
   split_src_jsonl: data/processed/MLLM_extracted_features.jsonl
   train_jsonl: data/processed/train.jsonl
   holdout_jsonl: data/processed/holdout.jsonl
+  inference_input_jsonl: data/processed/holdout.jsonl
+  inference_output_jsonl: data/processed/predictions.jsonl
   model_out: models/best_model.pkl
   meta_out: models/category_meta.json
   lineage_out: models/lineage.json
@@ -39,3 +41,7 @@ train:
 evaluate:
   price_cap: 6000.0
   experiment: sofa_price_regression
+
+inference:
+  experiment: sofa_price_regression
+  run_name: batch_inference

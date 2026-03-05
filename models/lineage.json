@@ -1,10 +1,14 @@
 {
-  "timestamp_utc": "2026-03-05T14:17:19.468361+00:00",
-  "train_run_id": "f851e6c525874b7ba5027b53b967bab3",
+  "timestamp_utc": "2026-03-05T15:31:59.780556+00:00",
+  "train_run_id": "d84b20c6c6134e1eabcbf3f5465c1e30",
   "data_split_id": "b3a6b5273afe2fe2",
-  "model_version": "model-f851e6c5",
+  "model_version": "model-d84b20c6",
   "train_data_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\data\\processed\\train.jsonl",
   "holdout_data_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\data\\processed\\holdout.jsonl",
   "model_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\models\\best_model.pkl",
-  "meta_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\models\\category_meta.json"
+  "meta_path": "C:\\Users\\gabri\\Documents\\Projects\\price_benchmark_MLLM\\models\\category_meta.json",
+  "python_version": "3.14.0",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "git_commit": "d988fa3655a63b58172dfba3932bd293d13622c9",
+  "requirements_sha256": "9fe59bd0be2e53d40bcdbcbb2894d5ec0ad17081442c9a8722ed07185fc68837"
 }

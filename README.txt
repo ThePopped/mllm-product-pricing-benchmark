@@ -42,10 +42,37 @@ Pipeline order
 6) Evaluate
    python src/evaluate.py
 
+7) Predict (batch inference)
+   python src/predict.py ^
+     --input data/processed/single_row_test.jsonl ^
+     --output data/processed/single_test_pred.jsonl
+
+Single-command orchestration
+----------------------------
+- End-to-end pipeline (recommended default):
+  python src/pipeline.py --config config/defaults.yaml
+
+- Include manual Cloudflare priming stage:
+  python src/pipeline.py --config config/defaults.yaml --include-cloudflare
+
+- Run only part of the pipeline:
+  python src/pipeline.py --config config/defaults.yaml --from split --to evaluate
+
+- Recreate train/holdout split safely:
+  python src/pipeline.py --config config/defaults.yaml --from split --to predict --force-resplit
+
+- Preview commands without executing:
+  python src/pipeline.py --config config/defaults.yaml --dry-run
+
+- Pipeline run metadata/logs are written to:
+  artifacts/pipeline/<run_id>/run_summary.json
+  artifacts/pipeline/<run_id>/pipeline.log
+
 Notes
 -----
 - Scraper and extraction logs/artifacts are written under artifacts/.
 - Extraction writes success-only records to data/processed/MLLM_extracted_features.jsonl.
+- Batch inference entrypoint: src/predict.py (accepts JSONL/JSON input).
 - Set HF_TOKEN environment variable if your selected model requires authentication.
 - Track local secrets in .env only (never commit .env).
 - Fill these values first:
