@@ -97,6 +97,26 @@
       return (typeof def === "number" && Number.isFinite(def)) ? String(def) : "";
     }
 
+    function coerceCategoricalValueForRequest(field, rawValue) {
+      const allowed = (schema.categorical_fields_all && schema.categorical_fields_all[field]) || [];
+      if (!allowed.length) return rawValue;
+
+      const hasBool = allowed.some((v) => typeof v === "boolean");
+      if (hasBool) {
+        const lowered = String(rawValue).toLowerCase();
+        if (lowered === "true" || lowered === "1" || lowered === "yes") return true;
+        if (lowered === "false" || lowered === "0" || lowered === "no") return false;
+      }
+
+      const hasNumber = allowed.some((v) => typeof v === "number");
+      if (hasNumber) {
+        const n = Number(rawValue);
+        if (Number.isFinite(n) && allowed.includes(n)) return n;
+      }
+
+      return rawValue;
+    }
+
     function refreshCategoryValuesPreserve() {
       const field = categoricalFieldEl.value;
       const values = currentCategoryValues();
@@ -185,7 +205,7 @@
         numeric_field: numericFieldEl.value,
         numeric_value: Number(numericValueEl.value),
         categorical_field: categoricalFieldEl.value,
-        categorical_value: categoricalValueEl.value
+        categorical_value: coerceCategoricalValueForRequest(categoricalFieldEl.value, categoricalValueEl.value)
       };
 
       try {

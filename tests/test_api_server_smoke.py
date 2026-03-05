@@ -142,3 +142,14 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
             },
         )
         assert bad_category.status_code == 400
+
+        bool_string = client.post(
+            "/v1/predict",
+            json={
+                "numeric_field": "width",
+                "numeric_value": 210.0,
+                "categorical_field": "reclining",
+                "categorical_value": "false",
+            },
+        )
+        assert bool_string.status_code == 200

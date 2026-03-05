@@ -42,6 +42,39 @@ class PredictResponse(BaseModel):
     data_split_id: str | None = None
 
 
+def _coerce_categorical_value(value: Any, allowed_values: list[Any]) -> Any:
+    if value in allowed_values:
+        return value
+
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+
+        # Common web-client behavior: booleans are submitted as strings.
+        if any(isinstance(v, bool) for v in allowed_values):
+            if lowered in ("true", "1", "yes"):
+                candidate = True
+                if candidate in allowed_values:
+                    return candidate
+            if lowered in ("false", "0", "no"):
+                candidate = False
+                if candidate in allowed_values:
+                    return candidate
+
+        # Optional numeric coercion for stringified numerics.
+        if any(isinstance(v, (int, float)) and not isinstance(v, bool) for v in allowed_values):
+            try:
+                if "." in lowered:
+                    candidate_num: Any = float(lowered)
+                else:
+                    candidate_num = int(lowered)
+                if candidate_num in allowed_values:
+                    return candidate_num
+            except ValueError:
+                pass
+
+    return value
+
+
 def _align_columns_for_model(model: Any, features: pd.DataFrame) -> pd.DataFrame:
     names = list(getattr(model, "feature_names_in_", []))
     if not names:
@@ -242,7 +275,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
             )
 
         allowed_values = categorical_fields[req.categorical_field]
-        if req.categorical_value not in allowed_values:
+        coerced_categorical_value = _coerce_categorical_value(req.categorical_value, allowed_values)
+        if coerced_categorical_value not in allowed_values:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -253,7 +287,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
 
         row = app.state.baseline.copy(deep=True)
         row.at[row.index[0], req.numeric_field] = float(req.numeric_value)
-        row.at[row.index[0], req.categorical_field] = req.categorical_value
+        row.at[row.index[0], req.categorical_field] = coerced_categorical_value
         preds = app.state.bundle.model.predict(row)
 
         return PredictResponse(
