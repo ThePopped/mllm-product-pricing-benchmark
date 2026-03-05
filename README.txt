@@ -1,6 +1,24 @@
 Price Benchmark MLLM
 ====================
 
+Reproducibility baseline
+------------------------
+- Install from lockfile:
+  pip install -r requirements.txt
+- Editable dependency list:
+  requirements.in
+- Regenerate lockfile after editing requirements.in:
+  pip-compile --output-file=requirements.txt requirements.in
+
+- Copy environment template once:
+  copy .env.example .env
+  (or on bash: cp .env.example .env)
+
+- Shared project config:
+  config/defaults.yaml
+  All major scripts accept:
+  --config config/defaults.yaml
+
 Pipeline order
 --------------
 1) Capture screenshots
@@ -29,3 +47,8 @@ Notes
 - Scraper and extraction logs/artifacts are written under artifacts/.
 - Extraction writes success-only records to data/processed/MLLM_extracted_features.jsonl.
 - Set HF_TOKEN environment variable if your selected model requires authentication.
+- Track local secrets in .env only (never commit .env).
+- Fill these values first:
+  - .env: HF_TOKEN (if model is gated), optionally MLFLOW_TRACKING_URI.
+  - config/defaults.yaml paths: update if your directories differ.
+  - config/defaults.yaml model_id: choose your target MLLM.

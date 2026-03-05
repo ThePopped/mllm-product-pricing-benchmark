@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -32,3 +35,26 @@ def write_lineage(path: Path, lineage: dict[str, Any]) -> None:
 
 def read_lineage(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def safe_git_commit(root: Path) -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        return out or None
+    except Exception:
+        return None
+
+
+def runtime_metadata(*, root: Path, requirements_path: Path) -> dict[str, Any]:
+    req_hash = file_sha256(requirements_path) if requirements_path.exists() else None
+    return {
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "git_commit": safe_git_commit(root),
+        "requirements_sha256": req_hash,
+    }

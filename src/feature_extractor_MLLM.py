@@ -33,6 +33,8 @@ from transformers import AutoModelForImageTextToText, AutoProcessor, BitsAndByte
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lineage_utils import runtime_metadata
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 DEFAULT_MODEL_ID = "Qwen/Qwen3-VL-4B-Instruct"
 DEFAULT_SCREENSHOTS_DIR = ROOT / "artifacts" / "scraping"
@@ -140,28 +142,47 @@ class ExtractionRecord:
 
 
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+    extraction_cfg = cfg.get("extraction", {})
     default_run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     p = argparse.ArgumentParser(description="Extract structured sofa features from screenshots with an MLLM.")
-    p.add_argument("--screenshots-dir", type=Path, default=DEFAULT_SCREENSHOTS_DIR)
-    p.add_argument("--glob-pattern", type=str, default="*.png")
-    p.add_argument("--model-id", type=str, default=DEFAULT_MODEL_ID)
-    p.add_argument("--output-jsonl", type=Path, default=DEFAULT_OUTPUT_JSONL)
+    p.add_argument("--config", type=Path, default=pre_args.config)
+    p.add_argument(
+        "--screenshots-dir",
+        type=Path,
+        default=cfg_path(ROOT, paths_cfg.get("scraping_artifacts_dir"), DEFAULT_SCREENSHOTS_DIR),
+    )
+    p.add_argument("--glob-pattern", type=str, default=str(extraction_cfg.get("glob_pattern", "*.png")))
+    p.add_argument("--model-id", type=str, default=str(extraction_cfg.get("model_id", DEFAULT_MODEL_ID)))
+    p.add_argument(
+        "--output-jsonl",
+        type=Path,
+        default=cfg_path(ROOT, paths_cfg.get("extraction_output_jsonl"), DEFAULT_OUTPUT_JSONL),
+    )
     p.add_argument("--overwrite-output", action="store_true")
-    p.add_argument("--artifacts-dir", type=Path, default=DEFAULT_ARTIFACTS_DIR)
+    p.add_argument(
+        "--artifacts-dir",
+        type=Path,
+        default=cfg_path(ROOT, paths_cfg.get("extraction_artifacts_dir"), DEFAULT_ARTIFACTS_DIR),
+    )
     p.add_argument("--run-id", type=str, default=default_run_id)
-    p.add_argument("--experiment", type=str, default=DEFAULT_EXPERIMENT)
-    p.add_argument("--run-name", type=str, default="feature_extraction")
-    p.add_argument("--max-new-tokens", type=int, default=300)
-    p.add_argument("--temperature", type=float, default=0.2)
+    p.add_argument("--experiment", type=str, default=str(extraction_cfg.get("experiment", DEFAULT_EXPERIMENT)))
+    p.add_argument("--run-name", type=str, default=str(extraction_cfg.get("run_name", "feature_extraction")))
+    p.add_argument("--max-new-tokens", type=int, default=int(extraction_cfg.get("max_new_tokens", 300)))
+    p.add_argument("--temperature", type=float, default=float(extraction_cfg.get("temperature", 0.2)))
     p.add_argument("--do-sample", action="store_true")
-    p.add_argument("--retry-on-invalid-json", type=int, default=1)
+    p.add_argument("--retry-on-invalid-json", type=int, default=int(extraction_cfg.get("retry_on_invalid_json", 1)))
     p.add_argument("--limit", type=int, default=0, help="0 means process all matching files.")
-    p.add_argument("--min-pixels", type=int, default=256 * 256)
-    p.add_argument("--max-pixels", type=int, default=1024 * 1024)
+    p.add_argument("--min-pixels", type=int, default=int(extraction_cfg.get("min_pixels", 256 * 256)))
+    p.add_argument("--max-pixels", type=int, default=int(extraction_cfg.get("max_pixels", 1024 * 1024)))
     p.add_argument("--no-4bit", action="store_true", help="Disable 4-bit quantization on CUDA.")
     p.add_argument("--hf-token-env", type=str, default="HF_TOKEN")
-    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--seed", type=int, default=int(extraction_cfg.get("seed", 42)))
     return p.parse_args()
 
 
@@ -602,6 +623,7 @@ def main() -> None:
     run_config["screenshots_dir"] = str(args.screenshots_dir)
     run_config["output_jsonl"] = str(args.output_jsonl)
     run_config["artifacts_dir"] = str(args.artifacts_dir)
+    run_config.update(runtime_metadata(root=ROOT, requirements_path=ROOT / "requirements.txt"))
     run_paths.run_config_json.write_text(json.dumps(run_config, indent=2), encoding="utf-8")
 
     hf_token = os.getenv(args.hf_token_env)

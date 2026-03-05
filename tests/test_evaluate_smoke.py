@@ -74,7 +74,6 @@ def test_evaluate_smoke_runs_and_saves_plots(tmp_path, monkeypatch) -> None:
     )
     train.main()
 
-    monkeypatch.setattr(evaluate, "PLOTS_DIR", plots_dir)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -90,6 +89,8 @@ def test_evaluate_smoke_runs_and_saves_plots(tmp_path, monkeypatch) -> None:
             str(meta_out),
             "--lineage-file",
             str(lineage_out),
+            "--plots-dir",
+            str(plots_dir),
             "--price-cap",
             "10000",
         ],

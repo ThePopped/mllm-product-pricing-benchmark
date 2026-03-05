@@ -14,6 +14,7 @@ from playwright.async_api import (
     Page,
     Response,
 )
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 # ==========================
 # CONFIG
@@ -498,20 +499,32 @@ async def take_screenshots(urls: List[str], paths: ScraperPaths, limit: int = LI
 # ENTRYPOINT
 # ==========================
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+    scraping_cfg = cfg.get("scraping", {})
     default_run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     p = argparse.ArgumentParser(description="Take listing screenshots with resilient progress tracking.")
+    p.add_argument("--config", type=Path, default=pre_args.config)
     p.add_argument(
         "--urls-csv",
         type=Path,
-        default=ROOT / "data" / "raw" / "ufurnish_sofa_urls.csv",
+        default=cfg_path(ROOT, paths_cfg.get("urls_csv"), ROOT / "data" / "raw" / "ufurnish_sofa_urls.csv"),
         help="Path to input CSV containing a 'url' column.",
     )
-    p.add_argument("--limit", type=int, default=LIMIT, help="Maximum number of URLs to process.")
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=int(scraping_cfg.get("limit", LIMIT)),
+        help="Maximum number of URLs to process.",
+    )
     p.add_argument(
         "--artifacts-dir",
         type=Path,
-        default=ROOT / "artifacts" / "scraping",
+        default=cfg_path(ROOT, paths_cfg.get("scraping_artifacts_dir"), ROOT / "artifacts" / "scraping"),
         help="Base directory for scraping artifacts.",
     )
     p.add_argument(
@@ -523,7 +536,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--state-file",
         type=Path,
-        default=ROOT / "artifacts" / "scraping" / "shared" / "cf_state.json",
+        default=cfg_path(ROOT, paths_cfg.get("cloudflare_state_file"), ROOT / "artifacts" / "scraping" / "shared" / "cf_state.json"),
         help="Path to Playwright storage_state JSON used for Cloudflare priming.",
     )
     return p.parse_args()

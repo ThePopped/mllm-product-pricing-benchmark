@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_dataset import build_dataset
 from lineage_utils import compute_data_split_id, read_lineage
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 DEFAULT_HOLDOUT = ROOT / "data" / "processed" / "holdout.jsonl"
 DEFAULT_TRAIN = ROOT / "data" / "processed" / "train.jsonl"
@@ -37,18 +38,27 @@ PLOTS_DIR = ROOT / "models"
 
 
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+    eval_cfg = cfg.get("evaluate", {})
+
     p = argparse.ArgumentParser(description="Evaluate trained model on the hold-out set.")
-    p.add_argument("--holdout", type=Path, default=DEFAULT_HOLDOUT)
-    p.add_argument("--train-data", type=Path, default=DEFAULT_TRAIN,
+    p.add_argument("--config", type=Path, default=pre_args.config)
+    p.add_argument("--holdout", type=Path, default=cfg_path(ROOT, paths_cfg.get("holdout_jsonl"), DEFAULT_HOLDOUT))
+    p.add_argument("--train-data", type=Path, default=cfg_path(ROOT, paths_cfg.get("train_jsonl"), DEFAULT_TRAIN),
                    help="Path to train split used to compute/verify data_split_id lineage tag.")
-    p.add_argument("--model", type=Path, default=DEFAULT_MODEL)
-    p.add_argument("--meta", type=Path, default=DEFAULT_META)
-    p.add_argument("--lineage-file", type=Path, default=DEFAULT_LINEAGE)
+    p.add_argument("--model", type=Path, default=cfg_path(ROOT, paths_cfg.get("model_out"), DEFAULT_MODEL))
+    p.add_argument("--meta", type=Path, default=cfg_path(ROOT, paths_cfg.get("meta_out"), DEFAULT_META))
+    p.add_argument("--lineage-file", type=Path, default=cfg_path(ROOT, paths_cfg.get("lineage_out"), DEFAULT_LINEAGE))
+    p.add_argument("--plots-dir", type=Path, default=cfg_path(ROOT, paths_cfg.get("eval_plots_dir"), PLOTS_DIR))
     p.add_argument("--train-run-id", type=str, default=None)
     p.add_argument("--data-split-id", type=str, default=None)
     p.add_argument("--model-version", type=str, default=None)
-    p.add_argument("--price-cap", type=float, default=6000.0)
-    p.add_argument("--experiment", type=str, default="sofa_price_regression")
+    p.add_argument("--price-cap", type=float, default=float(eval_cfg.get("price_cap", 6000.0)))
+    p.add_argument("--experiment", type=str, default=str(eval_cfg.get("experiment", "sofa_price_regression")))
     return p.parse_args()
 
 
@@ -78,7 +88,9 @@ def resolve_lineage(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
+    global PLOTS_DIR
     args = parse_args()
+    PLOTS_DIR = args.plots_dir
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
     lineage = resolve_lineage(args)
 

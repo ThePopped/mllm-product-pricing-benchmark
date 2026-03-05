@@ -19,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_dataset import build_dataset
 from build_features import extract_category_meta
-from lineage_utils import compute_data_split_id, write_lineage
+from lineage_utils import compute_data_split_id, runtime_metadata, write_lineage
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 DEFAULT_DATA = ROOT / "data" / "processed" / "train.jsonl"
 DEFAULT_HOLDOUT = ROOT / "data" / "processed" / "holdout.jsonl"
@@ -29,19 +30,28 @@ DEFAULT_LINEAGE_OUT = ROOT / "models" / "lineage.json"
 
 
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+    train_cfg = cfg.get("train", {})
+
     p = argparse.ArgumentParser(description="Train sofa price regression model.")
-    p.add_argument("--data", type=Path, default=DEFAULT_DATA,
+    p.add_argument("--config", type=Path, default=pre_args.config)
+    p.add_argument("--data", type=Path, default=cfg_path(ROOT, paths_cfg.get("train_jsonl"), DEFAULT_DATA),
                    help="Path to train.jsonl (default: data/processed/train.jsonl).")
-    p.add_argument("--holdout-data", type=Path, default=DEFAULT_HOLDOUT,
+    p.add_argument("--holdout-data", type=Path, default=cfg_path(ROOT, paths_cfg.get("holdout_jsonl"), DEFAULT_HOLDOUT),
                    help="Path to holdout.jsonl used to compute data_split_id lineage tag.")
-    p.add_argument("--model-out", type=Path, default=DEFAULT_MODEL_OUT)
-    p.add_argument("--meta-out", type=Path, default=DEFAULT_META_OUT)
-    p.add_argument("--lineage-out", type=Path, default=DEFAULT_LINEAGE_OUT)
+    p.add_argument("--model-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("model_out"), DEFAULT_MODEL_OUT))
+    p.add_argument("--meta-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("meta_out"), DEFAULT_META_OUT))
+    p.add_argument("--lineage-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("lineage_out"), DEFAULT_LINEAGE_OUT))
     p.add_argument("--model-version", type=str, default=None,
                    help="Optional explicit model version label. Defaults to model-<train_run_id_prefix>.")
-    p.add_argument("--n-iter", type=int, default=60,
+    p.add_argument("--n-iter", type=int, default=int(train_cfg.get("n_iter", 60)),
                    help="Number of RandomizedSearchCV iterations.")
-    p.add_argument("--price-cap", type=float, default=6000.0)
+    p.add_argument("--price-cap", type=float, default=float(train_cfg.get("price_cap", 6000.0)))
+    p.add_argument("--experiment", type=str, default=str(train_cfg.get("experiment", "sofa_price_regression")))
     return p.parse_args()
 
 
@@ -95,7 +105,7 @@ def main() -> None:
         verbose=2,
     )
 
-    mlflow.set_experiment("sofa_price_regression")
+    mlflow.set_experiment(args.experiment)
     data_split_id = compute_data_split_id(args.data, args.holdout_data)
 
     with mlflow.start_run(run_name="train_search"):
@@ -147,6 +157,7 @@ def main() -> None:
         "model_path": str(args.model_out),
         "meta_path": str(args.meta_out),
     }
+    lineage.update(runtime_metadata(root=ROOT, requirements_path=ROOT / "requirements.txt"))
     write_lineage(args.lineage_out, lineage)
     print(f"Lineage metadata     → {args.lineage_out}")
     print("\nRun evaluate.py on the hold-out set to get final test metrics.")

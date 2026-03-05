@@ -3,6 +3,11 @@ screenshots/
 scrape.log
 progress.json
 cf_state.json
+.env
+.venv/
+mlruns/
+.pytest_cache/
+.ipynb_checkpoints/
 *.tmp
 __pycache__/
 *.pyc

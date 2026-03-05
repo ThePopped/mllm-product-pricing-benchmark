@@ -2,15 +2,27 @@ import asyncio
 import argparse
 from pathlib import Path
 from playwright.async_api import async_playwright
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STATE_FILE = ROOT / "artifacts" / "scraping" / "shared" / "cf_state.json"
 
 
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+
     p = argparse.ArgumentParser(description="Manually prime and persist Cloudflare browser state.")
+    p.add_argument("--config", type=Path, default=pre_args.config)
     p.add_argument("--url", type=str, default="https://www.ufurnish.com")
-    p.add_argument("--state-file", type=Path, default=DEFAULT_STATE_FILE)
+    p.add_argument(
+        "--state-file",
+        type=Path,
+        default=cfg_path(ROOT, paths_cfg.get("cloudflare_state_file"), DEFAULT_STATE_FILE),
+    )
     return p.parse_args()
 
 

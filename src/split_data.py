@@ -20,19 +20,29 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
+from project_config import DEFAULT_CONFIG, cfg_path, load_config
+
 DEFAULT_SRC = ROOT / "data" / "processed" / "MLLM_extracted_features.jsonl"
 DEFAULT_TRAIN = ROOT / "data" / "processed" / "train.jsonl"
 DEFAULT_HOLDOUT = ROOT / "data" / "processed" / "holdout.jsonl"
 
 
 def parse_args() -> argparse.Namespace:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    pre_args, _ = pre.parse_known_args()
+    cfg = load_config(pre_args.config)
+    paths_cfg = cfg.get("paths", {})
+    split_cfg = cfg.get("split", {})
+
     p = argparse.ArgumentParser(description="Split extraction JSONL into train / hold-out.")
-    p.add_argument("--src", type=Path, default=DEFAULT_SRC)
-    p.add_argument("--train-out", type=Path, default=DEFAULT_TRAIN)
-    p.add_argument("--holdout-out", type=Path, default=DEFAULT_HOLDOUT)
-    p.add_argument("--holdout-size", type=float, default=0.15,
+    p.add_argument("--config", type=Path, default=pre_args.config)
+    p.add_argument("--src", type=Path, default=cfg_path(ROOT, paths_cfg.get("split_src_jsonl"), DEFAULT_SRC))
+    p.add_argument("--train-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("train_jsonl"), DEFAULT_TRAIN))
+    p.add_argument("--holdout-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("holdout_jsonl"), DEFAULT_HOLDOUT))
+    p.add_argument("--holdout-size", type=float, default=float(split_cfg.get("holdout_size", 0.15)),
                    help="Fraction of records reserved for hold-out (default: 0.15).")
-    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--seed", type=int, default=int(split_cfg.get("seed", 42)))
     return p.parse_args()
 
 
