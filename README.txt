@@ -75,6 +75,9 @@ Online serving (FastAPI)
 
 - Open minimal web UI:
   http://127.0.0.1:8000/
+  (Rendered via Jinja template: frontend/index.html)
+  (Static styling: frontend/static/styles.css)
+  UI renders one dedicated input/select per feature (no field-switch dropdown).
 
 - Health and readiness:
   GET /healthz
@@ -97,6 +100,14 @@ Online serving (FastAPI)
         "categorical_value": "Grey"
       }
     Response includes predicted price plus model lineage identifiers.
+
+  POST /v1/predict_full
+    Body:
+      {
+        "numeric_values": {"width": 210.0, "height": 95.0},
+        "categorical_values": {"colour_1": "Grey", "reclining": false}
+      }
+    Used by the UI to submit all visible feature values in one request.
 
 - UI integration pattern:
   1) Call /v1/schema to populate dropdowns (use top values by default).

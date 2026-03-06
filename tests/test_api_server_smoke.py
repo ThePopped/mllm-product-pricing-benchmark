@@ -103,11 +103,14 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
         assert "brand" not in payload["categorical_fields_top"]
         assert "colour_1" in payload["categorical_fields_all"]
         assert "colour_1" in payload["categorical_fields_top"]
+        assert "categorical_defaults" in payload
         assert payload["top_k_categories"] == 10
         assert len(payload["categorical_fields_top"]["colour_1"]) <= payload["top_k_categories"]
 
         ui = client.get("/")
         assert ui.status_code == 200
+        css = client.get("/static/styles.css")
+        assert css.status_code == 200
 
         pred = client.post(
             "/v1/predict",
@@ -122,6 +125,17 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
         body = pred.json()
         assert isinstance(body["predicted_price"], float)
         assert body["model_version"] == "model-123"
+
+        pred_full = client.post(
+            "/v1/predict_full",
+            json={
+                "numeric_values": {"width": 210.0, "height": 95.0},
+                "categorical_values": {"colour_1": "grey", "reclining": "false"},
+            },
+        )
+        assert pred_full.status_code == 200
+        full_body = pred_full.json()
+        assert isinstance(full_body["predicted_price"], float)
 
         bad_numeric = client.post(
             "/v1/predict",

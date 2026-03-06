@@ -6,9 +6,10 @@ import sys
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -19,7 +20,9 @@ from inference_service import ModelBundle, load_bundle
 from load_data import load_records
 from project_config import DEFAULT_CONFIG, cfg_path, load_config
 
-FRONTEND_INDEX = ROOT / "frontend" / "index.html"
+FRONTEND_DIR = ROOT / "frontend"
+FRONTEND_STATIC_DIR = FRONTEND_DIR / "static"
+FRONTEND_TEMPLATE = "index.html"
 
 
 class PredictRequest(BaseModel):
@@ -40,6 +43,31 @@ class PredictResponse(BaseModel):
     model_version: str | None = None
     train_run_id: str | None = None
     data_split_id: str | None = None
+
+
+class PredictFullRequest(BaseModel):
+    numeric_values: dict[str, float] = Field(default_factory=dict)
+    categorical_values: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_positive_numerics(self) -> "PredictFullRequest":
+        for key, value in self.numeric_values.items():
+            if value <= 0:
+                raise ValueError(f"numeric_values['{key}'] must be greater than 0.")
+        return self
+
+
+def _to_json_scalar(value: Any) -> Any:
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            return value
+    return value
 
 
 def _coerce_categorical_value(value: Any, allowed_values: list[Any]) -> Any:
@@ -167,10 +195,16 @@ def _build_schema_payload(
         all_categories=categorical_fields_all,
         top_k=top_k_categories,
     )
+    categorical_defaults = {
+        col: _to_json_scalar(baseline.iloc[0][col])
+        for col in categorical_fields_all.keys()
+        if col in baseline.columns
+    }
     return {
         "numeric_fields": numeric_fields,
         "categorical_fields_all": categorical_fields_all,
         "categorical_fields_top": categorical_fields_top,
+        "categorical_defaults": categorical_defaults,
         "top_k_categories": top_k_categories,
         "model_version": bundle.lineage.get("model_version"),
         "train_run_id": bundle.lineage.get("train_run_id"),
@@ -215,6 +249,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
         version="1.0.0",
         lifespan=lifespan,
     )
+    templates = Jinja2Templates(directory=str(FRONTEND_DIR))
 
     cors_origins = serving_cfg.get("cors_origins", [])
     if isinstance(cors_origins, list) and cors_origins:
@@ -225,6 +260,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    if FRONTEND_STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=str(FRONTEND_STATIC_DIR)), name="static")
 
     app.state.ready = False
     app.state.ready_error = None
@@ -237,10 +275,18 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        if not FRONTEND_INDEX.exists():
-            raise HTTPException(status_code=404, detail=f"Frontend not found: {FRONTEND_INDEX}")
-        return FileResponse(FRONTEND_INDEX)
+    def index(request: Request):
+        template_path = FRONTEND_DIR / FRONTEND_TEMPLATE
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail=f"Frontend template not found: {template_path}")
+        return templates.TemplateResponse(
+            request=request,
+            name=FRONTEND_TEMPLATE,
+            context={
+                "app_title": str(serving_cfg.get("title", "Sofa Price Serving API")),
+                "ui_subtitle": "Pick one numeric input (> 0) and one category observed in training data.",
+            },
+        )
 
     @app.get("/readyz")
     def readyz() -> dict[str, Any]:
@@ -290,6 +336,53 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
         row.at[row.index[0], req.categorical_field] = coerced_categorical_value
         preds = app.state.bundle.model.predict(row)
 
+        return PredictResponse(
+            predicted_price=float(preds[0]),
+            model_version=app.state.bundle.lineage.get("model_version"),
+            train_run_id=app.state.bundle.lineage.get("train_run_id"),
+            data_split_id=app.state.bundle.lineage.get("data_split_id"),
+        )
+
+    @app.post("/v1/predict_full", response_model=PredictResponse)
+    def predict_full(req: PredictFullRequest) -> PredictResponse:
+        if not app.state.ready:
+            raise HTTPException(status_code=503, detail=f"Model not ready: {app.state.ready_error}")
+
+        schema_payload = app.state.schema
+        numeric_fields = schema_payload["numeric_fields"]
+        categorical_fields = schema_payload["categorical_fields_all"]
+
+        row = app.state.baseline.copy(deep=True)
+
+        for field, value in req.numeric_values.items():
+            if field not in numeric_fields:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown numeric field '{field}'. Use /v1/schema.",
+                )
+            if value <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Numeric field '{field}' must be greater than 0.",
+                )
+            row.at[row.index[0], field] = float(value)
+
+        for field, value in req.categorical_values.items():
+            if field not in categorical_fields:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown categorical field '{field}'. Use /v1/schema.",
+                )
+            allowed_values = categorical_fields[field]
+            coerced = _coerce_categorical_value(value, allowed_values)
+            if coerced not in allowed_values:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid categorical value '{value}' for field '{field}'. Use /v1/schema.",
+                )
+            row.at[row.index[0], field] = coerced
+
+        preds = app.state.bundle.model.predict(row)
         return PredictResponse(
             predicted_price=float(preds[0]),
             model_version=app.state.bundle.lineage.get("model_version"),

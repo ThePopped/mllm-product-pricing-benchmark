@@ -3,98 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sofa Price Predictor</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; max-width: 760px; }
-    h1 { margin-bottom: 4px; }
-    p { color: #444; }
-    form { display: grid; gap: 12px; margin-top: 20px; }
-    label { font-weight: 600; display: grid; gap: 6px; }
-    select, input, button { padding: 8px; font-size: 14px; }
-    button { width: 180px; cursor: pointer; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; }
-    .muted { color: #666; font-size: 13px; }
-    .error { color: #a00; }
-  </style>
+  <title>{{ app_title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <h1>Sofa Price Predictor</h1>
-  <p>Pick one numeric input (> 0) and one category observed in training data.</p>
+  <div class="container">
+    <header class="hero">
+      <h1>{{ app_title }}</h1>
+      <p>{{ ui_subtitle }}</p>
+    </header>
 
-  <form id="predict-form">
-    <label>
-      Numeric field
-      <select id="numeric-field"></select>
-    </label>
+    <form id="predict-form" class="grid">
+      <section class="card">
+        <h2>Numeric Features</h2>
+        <div id="numeric-fields" class="fields-grid"></div>
+      </section>
 
-    <label>
-      Numeric value (> 0)
-      <input id="numeric-value" type="number" min="0.0000001" step="any" required>
-    </label>
+      <section class="card">
+        <h2>Categorical Features</h2>
+        <div id="categorical-fields" class="fields-grid"></div>
 
-    <label>
-      Categorical field
-      <select id="categorical-field"></select>
-    </label>
+        <label class="muted inline-checkbox">
+          <input id="show-all" type="checkbox">
+          <span id="show-all-label">Show all category values</span>
+        </label>
+      </section>
 
-    <label>
-      Categorical value
-      <select id="categorical-value"></select>
-    </label>
+      <section class="actions card">
+        <button id="predict-btn" type="submit">Predict price</button>
+        <div id="status" class="muted">Loading schema...</div>
+      </section>
+    </form>
 
-    <label class="muted">
-      <input id="show-all" type="checkbox">
-      Show all category values (default shows top values only)
-    </label>
-
-    <button type="submit">Predict price</button>
-    <div id="status" class="muted"></div>
-  </form>
-
-  <div id="result" class="card" style="display:none;"></div>
+    <section id="result" class="card result-card" style="display:none;"></section>
+  </div>
 
   <script>
-    const numericFieldEl = document.getElementById("numeric-field");
-    const numericValueEl = document.getElementById("numeric-value");
-    const categoricalFieldEl = document.getElementById("categorical-field");
-    const categoricalValueEl = document.getElementById("categorical-value");
+    const numericFieldsEl = document.getElementById("numeric-fields");
+    const categoricalFieldsEl = document.getElementById("categorical-fields");
     const showAllEl = document.getElementById("show-all");
+    const showAllLabelEl = document.getElementById("show-all-label");
     const statusEl = document.getElementById("status");
     const resultEl = document.getElementById("result");
+    const predictBtnEl = document.getElementById("predict-btn");
 
     let schema = null;
-    const numericValueByField = {};
-    const categoricalValueByField = {};
-    let prevNumericField = null;
-    let prevCategoricalField = null;
+    let topK = 10;
+    const numericState = {};
+    const categoricalState = {};
 
     function setStatus(text, isError = false) {
       statusEl.textContent = text;
       statusEl.className = isError ? "error" : "muted";
     }
 
-    function fillSelect(selectEl, values) {
+    function fillSelect(selectEl, values, selectedRaw) {
+      const selected = selectedRaw !== undefined && selectedRaw !== null ? String(selectedRaw) : "";
       selectEl.innerHTML = "";
       values.forEach((v) => {
         const opt = document.createElement("option");
         opt.value = String(v);
         opt.textContent = String(v);
+        if (String(v) === selected) {
+          opt.selected = true;
+        }
         selectEl.appendChild(opt);
       });
-    }
-
-    function currentCategoryValues() {
-      const field = categoricalFieldEl.value;
-      if (!field) return [];
-      if (showAllEl.checked) {
-        return schema.categorical_fields_all[field] || [];
+      if (values.length > 0 && !selectEl.value) {
+        selectEl.value = String(values[0]);
       }
-      return schema.categorical_fields_top[field] || [];
     }
 
-    function getNumericDefault(field) {
+    function categoryOptions(field) {
+      if (showAllEl.checked) {
+        return (schema.categorical_fields_all && schema.categorical_fields_all[field]) || [];
+      }
+      return (schema.categorical_fields_top && schema.categorical_fields_top[field]) || [];
+    }
+
+    function numericDefault(field) {
       const def = schema.numeric_fields[field]?.default;
-      return (typeof def === "number" && Number.isFinite(def)) ? String(def) : "";
+      return (typeof def === "number" && Number.isFinite(def)) ? def : 1;
+    }
+
+    function categoricalDefault(field) {
+      const fromSchema = schema.categorical_defaults ? schema.categorical_defaults[field] : null;
+      if (fromSchema !== undefined && fromSchema !== null) return fromSchema;
+      const opts = categoryOptions(field);
+      return opts.length ? opts[0] : "";
     }
 
     function coerceCategoricalValueForRequest(field, rawValue) {
@@ -117,82 +113,88 @@
       return rawValue;
     }
 
-    function refreshCategoryValuesPreserve() {
-      const field = categoricalFieldEl.value;
-      const values = currentCategoryValues();
-      const remembered = categoricalValueByField[field];
-      const current = categoricalValueEl.value;
-      fillSelect(categoricalValueEl, values);
-      const candidate = [remembered, current].find((v) => values.includes(v));
-      if (candidate) {
-        categoricalValueEl.value = candidate;
-      } else if (values.length > 0) {
-        categoricalValueEl.value = String(values[0]);
-      }
-      if (field) {
-        categoricalValueByField[field] = categoricalValueEl.value;
-      }
+    function renderNumericFields() {
+      numericFieldsEl.innerHTML = "";
+      Object.keys(schema.numeric_fields || {}).sort().forEach((field) => {
+        const wrap = document.createElement("label");
+        wrap.className = "field-row";
+        wrap.textContent = field;
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "0.0000001";
+        input.step = "any";
+        const value = numericState[field] ?? numericDefault(field);
+        numericState[field] = Number(value);
+        input.value = String(numericState[field]);
+        input.dataset.field = field;
+        input.required = true;
+
+        input.addEventListener("input", () => {
+          const n = Number(input.value);
+          if (Number.isFinite(n)) {
+            numericState[field] = n;
+          }
+        });
+
+        wrap.appendChild(input);
+        numericFieldsEl.appendChild(wrap);
+      });
+    }
+
+    function renderCategoricalFields() {
+      categoricalFieldsEl.innerHTML = "";
+      Object.keys(schema.categorical_fields_top || {}).sort().forEach((field) => {
+        const wrap = document.createElement("label");
+        wrap.className = "field-row";
+        wrap.textContent = field;
+
+        const select = document.createElement("select");
+        select.dataset.field = field;
+        const options = categoryOptions(field);
+        const remembered = categoricalState[field] ?? categoricalDefault(field);
+        fillSelect(select, options, remembered);
+        categoricalState[field] = select.value;
+
+        select.addEventListener("change", () => {
+          categoricalState[field] = select.value;
+        });
+
+        wrap.appendChild(select);
+        categoricalFieldsEl.appendChild(wrap);
+      });
+    }
+
+    function refreshCategoricalOptionsPreserve() {
+      const selects = categoricalFieldsEl.querySelectorAll("select[data-field]");
+      selects.forEach((select) => {
+        const field = select.dataset.field;
+        const options = categoryOptions(field);
+        const remembered = categoricalState[field] ?? categoricalDefault(field);
+        fillSelect(select, options, remembered);
+        categoricalState[field] = select.value;
+      });
     }
 
     async function init() {
       try {
+        predictBtnEl.disabled = true;
         setStatus("Loading schema...");
         const res = await fetch("/v1/schema");
         if (!res.ok) {
           throw new Error("Schema request failed: " + res.status);
         }
         schema = await res.json();
+        topK = Number(schema.top_k_categories || 10);
+        showAllLabelEl.textContent = `Show all category values (default shows top ${topK} values)`;
 
-        const numericFields = Object.keys(schema.numeric_fields || {});
-        const categoricalFields = Object.keys(schema.categorical_fields_top || {});
-
-        fillSelect(numericFieldEl, numericFields);
-        fillSelect(categoricalFieldEl, categoricalFields);
-        refreshCategoryValuesPreserve();
-
-        if (numericFields.length > 0) {
-          const field = numericFields[0];
-          numericValueEl.value = getNumericDefault(field);
-          numericValueByField[field] = numericValueEl.value;
-          prevNumericField = field;
-        }
-
-        if (categoricalFields.length > 0) {
-          const field = categoricalFields[0];
-          categoricalValueByField[field] = categoricalValueEl.value;
-          prevCategoricalField = field;
-        }
-
-        numericFieldEl.addEventListener("change", () => {
-          if (prevNumericField) {
-            numericValueByField[prevNumericField] = numericValueEl.value;
-          }
-          const field = numericFieldEl.value;
-          numericValueEl.value = numericValueByField[field] ?? getNumericDefault(field);
-          prevNumericField = field;
-        });
-
-        numericValueEl.addEventListener("input", () => {
-          const field = numericFieldEl.value;
-          if (field) numericValueByField[field] = numericValueEl.value;
-        });
-
-        categoricalFieldEl.addEventListener("change", () => {
-          if (prevCategoricalField) {
-            categoricalValueByField[prevCategoricalField] = categoricalValueEl.value;
-          }
-          refreshCategoryValuesPreserve();
-          prevCategoricalField = categoricalFieldEl.value;
-        });
-
-        showAllEl.addEventListener("change", refreshCategoryValuesPreserve);
-
-        categoricalValueEl.addEventListener("change", () => {
-          const field = categoricalFieldEl.value;
-          if (field) categoricalValueByField[field] = categoricalValueEl.value;
-        });
+        renderNumericFields();
+        renderCategoricalFields();
+        showAllEl.addEventListener("change", refreshCategoricalOptionsPreserve);
+        predictBtnEl.disabled = false;
         setStatus("Ready.");
       } catch (err) {
+        predictBtnEl.disabled = true;
         setStatus("Failed to initialize UI: " + err.message, true);
       }
     }
@@ -201,16 +203,27 @@
       ev.preventDefault();
       resultEl.style.display = "none";
 
+      const numericValues = {};
+      Object.keys(schema.numeric_fields || {}).forEach((field) => {
+        const v = Number(numericState[field]);
+        if (Number.isFinite(v)) {
+          numericValues[field] = v;
+        }
+      });
+
+      const categoricalValues = {};
+      Object.keys(schema.categorical_fields_all || {}).forEach((field) => {
+        categoricalValues[field] = coerceCategoricalValueForRequest(field, categoricalState[field]);
+      });
+
       const payload = {
-        numeric_field: numericFieldEl.value,
-        numeric_value: Number(numericValueEl.value),
-        categorical_field: categoricalFieldEl.value,
-        categorical_value: coerceCategoricalValueForRequest(categoricalFieldEl.value, categoricalValueEl.value)
+        numeric_values: numericValues,
+        categorical_values: categoricalValues
       };
 
       try {
         setStatus("Requesting prediction...");
-        const res = await fetch("/v1/predict", {
+        const res = await fetch("/v1/predict_full", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
