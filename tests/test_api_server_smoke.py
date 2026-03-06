@@ -99,10 +99,12 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
         assert schema.status_code == 200
         payload = schema.json()
         assert "width" in payload["numeric_fields"]
-        assert "brand" in payload["categorical_fields_all"]
-        assert "brand" in payload["categorical_fields_top"]
+        assert "brand" not in payload["categorical_fields_all"]
+        assert "brand" not in payload["categorical_fields_top"]
+        assert "colour_1" in payload["categorical_fields_all"]
+        assert "colour_1" in payload["categorical_fields_top"]
         assert payload["top_k_categories"] == 10
-        assert len(payload["categorical_fields_top"]["brand"]) <= payload["top_k_categories"]
+        assert len(payload["categorical_fields_top"]["colour_1"]) <= payload["top_k_categories"]
 
         ui = client.get("/")
         assert ui.status_code == 200
@@ -112,8 +114,8 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
             json={
                 "numeric_field": "width",
                 "numeric_value": 210.0,
-                "categorical_field": "brand",
-                "categorical_value": "BrandA",
+                "categorical_field": "colour_1",
+                "categorical_value": "grey",
             },
         )
         assert pred.status_code == 200
@@ -126,8 +128,8 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
             json={
                 "numeric_field": "width",
                 "numeric_value": 0.0,
-                "categorical_field": "brand",
-                "categorical_value": "BrandA",
+                "categorical_field": "colour_1",
+                "categorical_value": "grey",
             },
         )
         assert bad_numeric.status_code == 422
@@ -137,7 +139,7 @@ def test_api_server_schema_and_predict_smoke(tmp_path) -> None:
             json={
                 "numeric_field": "width",
                 "numeric_value": 210.0,
-                "categorical_field": "brand",
+                "categorical_field": "colour_1",
                 "categorical_value": "NotInTraining",
             },
         )

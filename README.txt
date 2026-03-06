@@ -93,8 +93,8 @@ Online serving (FastAPI)
       {
         "numeric_field": "width",
         "numeric_value": 210.0,
-        "categorical_field": "brand",
-        "categorical_value": "Julian Bowen"
+        "categorical_field": "colour_1",
+        "categorical_value": "Grey"
       }
     Response includes predicted price plus model lineage identifiers.
 
@@ -109,6 +109,7 @@ Notes
 - Scraper and extraction logs/artifacts are written under artifacts/.
 - Extraction writes success-only records to data/processed/MLLM_extracted_features.jsonl.
 - Batch inference entrypoint: src/predict.py (accepts JSONL/JSON input).
+- `brand` is excluded from model features (not used in train/evaluate/predict/API inference).
 - Set HF_TOKEN environment variable if your selected model requires authentication.
 - Track local secrets in .env only (never commit .env).
 - Fill these values first:

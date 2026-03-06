@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 # Columns present in parsed_json that carry no predictive signal for price.
-_COLS_TO_DROP = ["evidence", "additional_features", "model", "discount_amount"]
+_COLS_TO_DROP = ["evidence", "additional_features", "model", "discount_amount", "brand"]
 
 
 def build_features(

@@ -32,7 +32,7 @@ def _record(price: float, brand: str, colour: str) -> dict:
 
 def test_build_features_drops_expected_columns() -> None:
     df = build_features([_record(999.0, "A", "grey")], keep_price=True)
-    for col in ("evidence", "additional_features", "model", "discount_amount"):
+    for col in ("evidence", "additional_features", "model", "discount_amount", "brand"):
         assert col not in df.columns
 
 
@@ -52,10 +52,10 @@ def test_build_features_single_dict_equals_list_of_one() -> None:
 
 def test_build_features_applies_category_meta() -> None:
     data = [_record(1000.0, "BrandA", "grey"), _record(1100.0, "BrandB", "beige")]
-    category_meta = {"brand": ["BrandA", "BrandB", "BrandC"]}
+    category_meta = {"colour_1": ["beige", "grey", "green"]}
     df = build_features(data, category_meta=category_meta, keep_price=True)
-    assert str(df["brand"].dtype) == "category"
-    assert list(df["brand"].cat.categories) == ["BrandA", "BrandB", "BrandC"]
+    assert str(df["colour_1"].dtype) == "category"
+    assert list(df["colour_1"].cat.categories) == ["beige", "grey", "green"]
 
 
 def test_extract_category_meta_roundtrip() -> None:
@@ -69,5 +69,6 @@ def test_extract_category_meta_roundtrip() -> None:
         category_meta=meta,
         keep_price=True,
     )
-    assert "brand" in meta
-    assert list(transformed["brand"].cat.categories) == list(meta["brand"])
+    assert "brand" not in meta
+    assert "colour_1" in meta
+    assert list(transformed["colour_1"].cat.categories) == list(meta["colour_1"])
