@@ -6,7 +6,7 @@ A proof-of-concept machine learning pipeline for competitive pricing analysis - 
 *Note*: Live app is hosted on Render free tier, may take 10-30 seconds to load.
 
 ### Motivation:
-Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. These are then used to inform internal pricing. This project explores how feature extraction and regression modelling can partially automate the price benchmarking workflow.
+Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching an existing product. Instead, price mst be estimated from how product characteristics relate to price broadly accross the market. In practise, this relationship between price and features is generally assessed informally, by comparing similar products. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow.
 
 ## Reproducibility Baseline
 
