@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """Production MLLM feature extraction pipeline.
-
+Unlikely to work locally - initial runs orchestrated on Kaggle.
 Run:
     python src/feature_extractor_MLLM.py --screenshots-dir <path>
 
@@ -35,6 +35,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lineage_utils import runtime_metadata
 from project_config import DEFAULT_CONFIG, cfg_path, load_config
+
+# Should probably replace with langchain implementation
 
 DEFAULT_MODEL_ID = "Qwen/Qwen3-VL-4B-Instruct"
 DEFAULT_SCREENSHOTS_DIR = ROOT / "artifacts" / "scraping"
@@ -76,7 +78,7 @@ SOFA_SCHEMA = {
         "currency",
         "brand",
         "model",
-        "colour_1",
+        "colour_1", # need to make these numbered categories more clearly divided
         "colour_2",
         "colour_3",
         "material_1",
@@ -182,7 +184,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-pixels", type=int, default=int(extraction_cfg.get("max_pixels", 1024 * 1024)))
     p.add_argument("--no-4bit", action="store_true", help="Disable 4-bit quantization on CUDA.")
     p.add_argument("--hf-token-env", type=str, default="HF_TOKEN")
-    p.add_argument("--seed", type=int, default=int(extraction_cfg.get("seed", 42)))
+    p.add_argument("--seed", type=int, default=int(extraction_cfg.get("seed", 1001)))
     return p.parse_args()
 
 

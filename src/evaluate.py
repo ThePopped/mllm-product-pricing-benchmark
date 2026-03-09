@@ -169,7 +169,7 @@ def main() -> None:
         print("Computing permutation feature importance...")
         perm = permutation_importance(
             model, X, y,
-            n_repeats=10, random_state=42,
+            n_repeats=10, random_state=1001,
             scoring="neg_root_mean_squared_error",
             n_jobs=-1,
         )

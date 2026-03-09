@@ -67,14 +67,14 @@ def main() -> None:
     category_meta = extract_category_meta(X)
     print(f"Training set: {len(X)} records, {X.shape[1]} features")
 
-    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv = KFold(n_splits=5, shuffle=True, random_state=1001)
 
     # ------------------------------------------------------------------
     # Baseline (default hyperparams, CV score only — not logged to MLflow)
     # ------------------------------------------------------------------
     print("Fitting baseline...")
     baseline_scores = cross_val_score(
-        HistGradientBoostingRegressor(random_state=42),
+        HistGradientBoostingRegressor(random_state=1001),
         X, y, cv=cv,
         scoring="neg_root_mean_squared_error",
         n_jobs=-1,
@@ -95,13 +95,13 @@ def main() -> None:
     }
 
     search = RandomizedSearchCV(
-        estimator=HistGradientBoostingRegressor(random_state=42),
+        estimator=HistGradientBoostingRegressor(random_state=1001),
         param_distributions=param_distributions,
         n_iter=args.n_iter,
         scoring="neg_root_mean_squared_error",
         cv=cv,
         n_jobs=-1,
-        random_state=42,
+        random_state=1001,
         verbose=2,
     )
 

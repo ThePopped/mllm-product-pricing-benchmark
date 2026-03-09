@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--holdout-out", type=Path, default=cfg_path(ROOT, paths_cfg.get("holdout_jsonl"), DEFAULT_HOLDOUT))
     p.add_argument("--holdout-size", type=float, default=float(split_cfg.get("holdout_size", 0.15)),
                    help="Fraction of records reserved for hold-out (default: 0.15).")
-    p.add_argument("--seed", type=int, default=int(split_cfg.get("seed", 42)))
+    p.add_argument("--seed", type=int, default=int(split_cfg.get("seed", 1001)))
     return p.parse_args()
 
 
