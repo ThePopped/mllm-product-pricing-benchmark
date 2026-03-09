@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: price-benchmark-mllm-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements-serving.txt
+    startCommand: python src/serve_api.py --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11

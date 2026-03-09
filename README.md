@@ -173,6 +173,24 @@ python src/serve_api.py --config config/defaults.yaml
   3. Let user pick one categorical field + allowed value
   4. Send `POST /v1/predict`
 
+## Deploy on Render
+
+### Deployment-Friendly Runtime
+
+- A minimal serving requirements file is provided in `requirements-serving.txt`.
+- This excludes big training libs (`torch`, `transformers`, `bitsandbytes`, `playwright`) to stay cheap.
+
+### Required Runtime Artifacts
+
+Render deployment needs these files:
+
+- `models/best_model.pkl`
+- `models/category_meta.json`
+- `models/lineage.json`
+- `data/processed/train.jsonl`
+
+These are loaded at app startup to build the serving baseline and schema.
+
 ## Notes
 
 - Scraper and extraction logs/artifacts written under `artifacts/`
