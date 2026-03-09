@@ -1,8 +1,12 @@
 # Price Benchmark MLLM
 
-A proof-of-concept ML pipeline - Price regression using  MLLM-extracted product features, scraped from online sources with playwright. For basic inference demo (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
+### Summary:
+A proof-of-concept machine learning pipeline for competitive pricing analysis - Price regression is estimated using  MLLM-extracted product features, scraped from online sources with playwright. For basic inference demo (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
 
-**Note**: Hosted on Render free tier, may take 10-30 seconds to load.
+*Note*: Live app is hosted on Render free tier, may take 10-30 seconds to load.
+
+### Motivation:
+Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. These are then used to inform internal pricing. This project explores how feature extraction and regression modelling can partially automate the price benchmarking workflow.
 
 ## Reproducibility Baseline
 
