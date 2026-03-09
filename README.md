@@ -1,5 +1,9 @@
 # Price Benchmark MLLM
 
+A proof-of-concept ML pipeline - Price regression using  MLLM-extracted product features, scraped from online sources with playwright. For basic inference demo (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
+
+**Note**: Hosted on Render free tier, may take 10-30 seconds to load.
+
 ## Reproducibility Baseline
 
 - Install from lockfile:
@@ -190,6 +194,13 @@ Render deployment needs these files:
 - `data/processed/train.jsonl`
 
 These are loaded at app startup to build the serving baseline and schema.
+
+### Deployment
+- Provider: Render (Web Service)
+- Runtime: Python + FastAPI + Jinja
+- Build command: `pip install -r requirements-serving.txt`
+- Start command: `python src/serve_api.py --host 0.0.0.0 --port $PORT`
+- Last verified: 2026-03-06
 
 ## Notes
 
