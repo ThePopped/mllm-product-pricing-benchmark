@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "price-benchmark-mllm"
+version = "0.1.0"
+description = "MLLM-based product pricing benchmark"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["src"]
