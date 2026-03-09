@@ -89,6 +89,16 @@ button:disabled {
   margin-top: 0;
 }
 
+.result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-card p {
+  margin: 0;
+}
+
 .inline-checkbox {
   font-weight: 400;
   display: flex;

@@ -284,7 +284,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG) -> FastAPI:
             name=FRONTEND_TEMPLATE,
             context={
                 "app_title": str(serving_cfg.get("title", "Sofa Price Serving API")),
-                "ui_subtitle": "Pick one numeric input (> 0) and one category observed in training data.",
+                "ui_subtitle": """This is a service demo designed to help pricing teams benchmark the price of a sofa based on hypothetical characteristics. 
+                Input the characteristics of a sofa to get a benchmark price estimate. """,
             },
         )
 
