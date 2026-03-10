@@ -8,6 +8,66 @@ A proof-of-concept machine learning pipeline for competitive pricing analysis - 
 ### Motivation:
 Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching an existing product. Instead, price mst be estimated from how product characteristics relate to price broadly accross the market. In practise, this relationship between price and features is generally assessed informally, by comparing similar products. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow.
 
+### Design Overview
+#### Pipeline Architecture
+```mermaid
+flowchart LR
+  %% Config
+  C["Config<br/>config/defaults.yaml"]
+
+  %% Orchestration
+  O["Pipeline Orchestrator<br/>src/pipeline.py"]
+
+  %% Data pipeline
+  subgraph DP["Data Pipeline"]
+    D["Data Collection<br/>main_scraper + cloudflare_handler"]
+    F["Feature Extraction (MLLM)<br/>feature_extractor_MLLM"]
+    S["Split Data<br/>split_data.py"]
+  end
+
+  %% Training and evaluation
+  subgraph MT["Model Training"]
+    T["Train Model<br/>train.py"]
+    E["Evaluate Model<br/>evaluate.py"]
+  end
+
+  %% Inference and serving
+  subgraph INF["Inference & Serving"]
+    B["Batch Predict<br/>predict.py"]
+    A["Online Serving API<br/>serve_api + api_server"]
+  end
+
+  %% Storage and tracking
+  AR["Artifacts & Data<br/>artifacts, data/processed, models"]
+  M["MLflow Tracking<br/>experiments, metrics, artifacts"]
+
+  %% Main flow
+  C --> O
+  O --> D
+  D --> F
+  F --> S
+  S --> T
+  T --> E
+
+  %% Downstream usage
+  T --> B
+  T --> A
+
+  %% Artifact outputs
+  D --> AR
+  F --> AR
+  S --> AR
+  T --> AR
+  E --> AR
+  B --> AR
+
+  %% Tracking
+  F -.-> M
+  T -.-> M
+  E -.-> M
+  B -.-> M
+```
+
 ## Reproducibility Baseline
 
 - Install from lockfile:
