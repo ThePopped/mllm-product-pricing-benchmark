@@ -8,6 +8,18 @@ A proof-of-concept machine learning pipeline for competitive pricing analysis - 
 ### Motivation:
 Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching an existing product. Instead, price mst be estimated from how product characteristics relate to price broadly accross the market. In practise, this relationship between price and features is generally assessed informally, by comparing similar products. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow.
 
+### Objectives
+The main objective is to:
+> Develop a prototype system that provides a benchmark price prediction from product characteristics
+
+To achieve this, there are several sub-objectives:
+<ol>
+<li> Program a scraper to collect product listing images </li>
+<li> Use an MLLM to extract structured product features and labels using product images</li>
+<li> Train a regression model to predict price from product features</li>
+<li> Provide an API endpoint for inference and a demo </li>
+</ol>
+
 ### Design Overview
 #### Pipeline Architecture
 ```mermaid
