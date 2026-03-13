@@ -26,13 +26,23 @@ To achieve this, there are several sub-objectives:
 flowchart LR
   C["Config: config/defaults.yaml"]
   O["Pipeline Orchestrator: src/pipeline.py"]
-  D["Data Collection: main_scraper + cloudflare_handler"]
-  F["Feature Extraction (MLLM): feature_extractor_MLLM"]
-  S["Split Data: split_data.py"]
-  T["Train Model: train.py"]
-  E["Evaluate Model: evaluate.py"]
-  B["Batch Predict: predict.py"]
-  A["Online Serving API: serve_api + api_server"]
+
+  subgraph DP["Data Pipeline"]
+    D["Data Collection: main_scraper + cloudflare_handler"]
+    F["Feature Extraction (MLLM): feature_extractor_MLLM"]
+    S["Split Data: split_data.py"]
+  end
+
+  subgraph MT["Model Training"]
+    T["Train Model: train.py"]
+    E["Evaluate Model: evaluate.py"]
+  end
+
+  subgraph INF["Inference and Serving"]
+    B["Batch Predict: predict.py"]
+    A["Online Serving API: serve_api + api_server"]
+  end
+
   AR["Artifacts and Data: artifacts, data/processed, models"]
   M["MLflow Tracking: experiments, metrics, artifacts"]
 
