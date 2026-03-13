@@ -24,28 +24,36 @@ To achieve this, there are several sub-objectives:
 #### Pipeline Architecture
 ```mermaid
 flowchart LR
-  C["Config<br>config/defaults.yaml"]
-  O["Pipeline Orchestrator<br>src/pipeline.py"]
+  %% Config
+  C["Config<br/>config/defaults.yaml"]
 
+  %% Orchestration
+  O["Pipeline Orchestrator<br/>src/pipeline.py"]
+
+  %% Data pipeline
   subgraph DP["Data Pipeline"]
-    D["Data Collection<br>main_scraper + cloudflare_handler"]
-    F["Feature Extraction (MLLM)<br>feature_extractor_MLLM"]
-    S["Split Data<br>split_data.py"]
+    D["Data Collection<br/>main_scraper + cloudflare_handler"]
+    F["Feature Extraction (MLLM)<br/>feature_extractor_MLLM"]
+    S["Split Data<br/>split_data.py"]
   end
 
+  %% Training and evaluation
   subgraph MT["Model Training"]
-    T["Train Model<br>train.py"]
-    E["Evaluate Model<br>evaluate.py"]
+    T["Train Model<br/>train.py"]
+    E["Evaluate Model<br/>evaluate.py"]
   end
 
-  subgraph INF["Inference and Serving"]
-    B["Batch Predict<br>predict.py"]
-    A["Online Serving API<br>serve_api + api_server"]
+  %% Inference and serving
+  subgraph INF["Inference & Serving"]
+    B["Batch Predict<br/>predict.py"]
+    A["Online Serving API<br/>serve_api + api_server"]
   end
 
-  AR["Artifacts and Data<br>artifacts, data/processed, models"]
-  M["MLflow Tracking<br>experiments, metrics, artifacts"]
+  %% Storage and tracking
+  AR["Artifacts & Data<br/>artifacts, data/processed, models"]
+  M["MLflow Tracking<br/>experiments, metrics, artifacts"]
 
+  %% Main flow
   C --> O
   O --> D
   D --> F
@@ -53,9 +61,11 @@ flowchart LR
   S --> T
   T --> E
 
+  %% Downstream usage
   T --> B
   T --> A
 
+  %% Artifact outputs
   D --> AR
   F --> AR
   S --> AR
@@ -63,6 +73,7 @@ flowchart LR
   E --> AR
   B --> AR
 
+  %% Tracking
   F -.-> M
   T -.-> M
   E -.-> M
