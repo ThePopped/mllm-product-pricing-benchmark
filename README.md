@@ -24,27 +24,27 @@ To achieve this, there are several sub-objectives:
 #### Pipeline Architecture
 ```mermaid
 flowchart LR
-  C["Config<br>config/defaults.yaml"]
-  O["Pipeline Orchestrator<br>src/pipeline.py"]
+  C["Config: config/defaults.yaml"]
+  O["Pipeline Orchestrator: src/pipeline.py"]
 
   subgraph DP["Data Pipeline"]
-    D["Data Collection<br>main_scraper + cloudflare_handler"]
-    F["Feature Extraction (MLLM)<br>feature_extractor_MLLM"]
-    S["Split Data<br>split_data.py"]
+    D["Data Collection: main_scraper + cloudflare_handler"]
+    F["Feature Extraction (MLLM): feature_extractor_MLLM"]
+    S["Split Data: split_data.py"]
   end
 
   subgraph MT["Model Training"]
-    T["Train Model<br>train.py"]
-    E["Evaluate Model<br>evaluate.py"]
+    T["Train Model: train.py"]
+    E["Evaluate Model: evaluate.py"]
   end
 
   subgraph INF["Inference and Serving"]
-    B["Batch Predict<br>predict.py"]
-    A["Online Serving API<br>serve_api + api_server"]
+    B["Batch Predict: predict.py"]
+    A["Online Serving API: serve_api + api_server"]
   end
 
-  AR["Artifacts and Data<br>artifacts, data/processed, models"]
-  M["MLflow Tracking<br>experiments, metrics, artifacts"]
+  AR["Artifacts and Data: artifacts, data/processed, models"]
+  M["MLflow Tracking: experiments, metrics, artifacts"]
 
   C --> O
   O --> D
