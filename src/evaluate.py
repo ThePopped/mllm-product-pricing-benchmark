@@ -19,6 +19,7 @@ import joblib
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
+from scipy import stats
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_squared_error
 
@@ -165,6 +166,21 @@ def main() -> None:
         ax.set_title("Residuals vs Predicted (hold-out)")
         residuals_path = save_plot(fig, "holdout_residuals.png")
 
+        # Residual distribution
+        fig, ax = plt.subplots()
+        ax.hist(residuals, bins=30, alpha=0.75, edgecolor="black")
+        ax.axvline(0, color="red", linewidth=1, linestyle="--")
+        ax.set_xlabel("Residual (Actual − Predicted)")
+        ax.set_ylabel("Count")
+        ax.set_title("Residual Distribution (hold-out)")
+        residual_dist_path = save_plot(fig, "holdout_residual_distribution.png")
+
+        # Residual Q-Q plot (normal reference)
+        fig, ax = plt.subplots()
+        stats.probplot(residuals, dist="norm", plot=ax)
+        ax.set_title("Residual Q-Q Plot (hold-out)")
+        qq_path = save_plot(fig, "holdout_residuals_qq.png")
+
         # Permutation feature importance
         print("Computing permutation feature importance...")
         perm = permutation_importance(
@@ -188,6 +204,8 @@ def main() -> None:
 
         mlflow.log_artifact(str(pred_actual_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(residuals_path), artifact_path="evaluation_plots")
+        mlflow.log_artifact(str(residual_dist_path), artifact_path="evaluation_plots")
+        mlflow.log_artifact(str(qq_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(importance_path), artifact_path="evaluation_plots")
 
         print(f"Plots saved to {PLOTS_DIR}")
