@@ -51,7 +51,7 @@ The largest residuals are at higher true prices, and they cluster away from the 
 This cleaner view of residuals shows the model has signs of heteroskedasticity, particularly at higher prices, meaning it is more reliable for mid-market products.
 
 **Feature Importance**
-![Holdout: Feature Importance](models\holdout_feature_importance.png)
+![Holdout: Feature Importance](models/holdout_feature_importance.png)
 
 In terms of feature importance, of note is the range of important features, as opposed to reliance on just 1 or 2. Seat number and width are of highest predictive power, although product count¹, height, primary colour and depth collectively are valuable as well. Secondary and tertiary colours or materials are of almost no consequence.
 
