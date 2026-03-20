@@ -1,24 +1,61 @@
 # Price Benchmark with MLLM-extracted features
 
 ### Summary:
-A proof-of-concept machine learning pipeline for competitive pricing analysis - Price regression is estimated using  MLLM-extracted product features, scraped from online sources with playwright. The product type is limited to sofas the purposes of this prototype. For basic inference demo (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
+A proof-of-concept machine learning pipeline for competitive pricing analysis - Price regression is estimated using  MLLM-extracted product features, scraped from online sources with playwright. The product type is limited to sofas for the purposes of this prototype, due to ease of scraping and because characteristics can be translated straightforwardly into structured features.
+
+For a **basic inference demo** (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
 
 *Note*: Live app is hosted on Render free tier, may take 10-30 seconds to load.
 
 ### Motivation:
-Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors. This typically takes place prior to product development but it can also be done during and after to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching an existing product. Instead, price mst be estimated from how product characteristics relate to price broadly accross the market. In practise, this relationship between price and features is generally assessed informally, by comparing similar products. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow.
+Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors, but this is usually an informal and manual process, which could be made faster and more accurate by a pricing model. Price benchmarking typically takes place prior to product development but it can also be done during and after, to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions, and then setting/adjusting prices depending on the 'closeness' of other products. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching other products in the market. Instead, price must be estimated from how product characteristics relate to price broadly accross the market. Accross many industries this relationship between product price and characteristics is assessed without formal/technical analysis. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow in the furniture industry, with a focus on sofas.
 
 ### Objectives
 The main objective is to:
-> Develop a prototype system that provides a benchmark price prediction from product characteristics
+> Develop a proof-of-concept system that provides a benchmark price prediction from product characteristics using scraped product listings.
 
-To achieve this, there are several sub-objectives:
-<ol>
-<li> Program a scraper to collect product listing images </li>
-<li> Use an MLLM to extract structured product features and labels using product images</li>
-<li> Train a regression model to predict price from product features</li>
-<li> Provide an API endpoint for inference and a demo </li>
-</ol>
+In essence, the goal is to to establish a proof-of-concept and establish whether results hold any promise for a full project. To achieve this, there are several sub-objectives:
+>
+> 
+> <ol>
+> 
+> <li> Program a scraper to collect product listing images </li>
+> 
+> <li> Use an MLLM to extract structured product features and labels using product images</li>
+> 
+> <li> Train a regression model to predict price from product features and confirm results are usable </li>
+> 
+> <li> Provide an API endpoint for inference and a demo </li>
+> 
+> </ol>
+
+### Outcomes
+#### Benchmark Pricing Regression Results
+The regression model achieved the following performance on the hold-out set:
+
+| Metric | Value |
+|--------|-------|
+| R²     | 0.51  |
+| RMSE   | £553  |
+
+This is a reasonable performance given that only one algorithm (Histogram-based Gradient Boosting) is tested and the feature set is limited mostly to basic size, colour, and surface material attributes.
+ 
+**Predicted vs. Actual Prices**
+![Holdout: Predicted vs Actual](/models/holdout_predicted_vs_actual.png)
+
+The largest residuals are at higher true prices, and they cluster away from the main spread of data. Earlier versions of the regression and error analysis revealed a handful of even larger residuals (£20,000+), which turned out to be MLLM mislabelling of the listings for price, hence the price limit in the feature engineering step. This ideally should be resolved by checking the MLLM performance and tweaking it further
+
+**Residuals Plot**
+![Holdout: Residuals](/models/holdout_residuals.png)
+
+This cleaner view of residuals shows the model has signs of heteroskedasticity, particularly at higher prices, meaning it is more reliable for mid-market products.
+
+**Feature Importance**
+![Holdout: Feature Importance](models\holdout_feature_importance.png)
+
+In terms of feature importance, of note is the range of important features, as opposed to reliance on just 1 or 2. Seat number and width are of highest predictive power, although product count¹, height, primary colour and depth collectively are valuable as well. Secondary and tertiary colours or materials are of almost no consequence.
+
+¹ "product_count" refers to the number of sofas listed, since sometimes a sofa set is advertised.
 
 ### Design Overview
 #### Pipeline Architecture
@@ -79,6 +116,9 @@ flowchart LR
   E -.-> M
   B -.-> M
 ```
+
+### Extensions & Next Steps
+The project is far from a complete
 
 ## Reproducibility Baseline
 
