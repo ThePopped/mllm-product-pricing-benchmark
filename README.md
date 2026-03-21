@@ -43,7 +43,7 @@ This is a reasonable performance given that only one algorithm (Histogram-based 
 **Predicted vs. Actual Prices**
 ![Holdout: Predicted vs Actual](/models/holdout_predicted_vs_actual.png)
 
-The largest residuals are at higher true prices, and they cluster away from the main spread of data. Earlier versions of the regression and error analysis revealed a handful of even larger residuals (£20,000+), which turned out to be MLLM mislabelling of the listings for price, hence the price limit in the feature engineering step. This ideally should be resolved by checking the MLLM performance and tweaking it further
+The largest residuals are at higher true prices, and they cluster away from the main spread of data. Earlier versions of the regression and error analysis revealed a handful of even larger residuals (£20,000+), which turned out to be MLLM mislabelling of the listings for price, hence the price limit in the feature engineering step. This ideally should be resolved by checking the MLLM performance and tweaking it further.
 
 **Residuals Plot**
 ![Holdout: Residuals](/models/holdout_residuals.png)
