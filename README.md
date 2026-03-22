@@ -1,11 +1,14 @@
 # Price Benchmark with MLLM-extracted features
 
 ### Summary:
-A proof-of-concept machine learning pipeline for competitive pricing analysis. The key idea is to predict price from product characteristics (e.g. Size, colour, material) which acts as an estimator of fair market value for potential product descriptions. Data is scraped for 1000 real product listings with Playwright. Price regression is estimated on  MLLM-extracted product features. The product type is limited to sofas for the purposes of this prototype, due to ease of scraping and because product characteristics can be translated straightforwardly into structured features.
+A proof-of-concept machine learning pipeline for competitive pricing analysis. The key idea is to predict price from product characteristics (e.g. Size, colour, material) which acts as an estimator of fair market value for potential product descriptions. Data is scraped for 1000 real product listings with Playwright. Price regression is estimated on MLLM-extracted product features. The product type is limited to sofas for the purposes of this prototype, due to ease of scraping and because product characteristics can be translated straightforwardly into structured features.
 
 For a **basic inference demo** (regression component only), see the [live web app](https://mllm-product-pricing-benchmark-service.onrender.com/) deployed on Render.
 
 *Note*: Live app is hosted on Render free tier, may take 10-30 seconds to load.
+
+**Prediction Demo Screenshot:**
+![dashboard_image](assets/dashboard_display.png)
 
 ### Motivation:
 Businesses often need to evaluate how their product is priced compared to similar (substitutable) products sold by their competitors, but this is usually an informal and manual process, which could be made faster and more accurate by a pricing model. Price benchmarking typically takes place prior to product development but it can also be done during and after, to align prices with the market. In non-technical teams this involves gathering data by visiting online competitor product listings or sometimes physically attending stores or exhibitions, and then setting/adjusting prices depending on the 'closeness' of other products. Competitor products are rarely identical, thus the appropriate price cannot be determined by directly matching other products in the market. Instead, price must be estimated from how product characteristics relate to price broadly accross the market. Accross many industries this relationship between product price and characteristics is assessed without formal/technical analysis. This project explores how feature extraction and regression modelling can partially automate this price benchmarking workflow in the furniture industry, with a focus on sofas.
