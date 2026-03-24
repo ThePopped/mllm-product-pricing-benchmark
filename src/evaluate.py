@@ -60,6 +60,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model-version", type=str, default=None)
     p.add_argument("--price-cap", type=float, default=float(eval_cfg.get("price_cap", 6000.0)))
     p.add_argument("--experiment", type=str, default=str(eval_cfg.get("experiment", "sofa_price_regression")))
+    p.add_argument("--with-shap", action="store_true", help="Compute optional SHAP explanations on a sample of hold-out data.")
+    p.add_argument("--shap-max-samples", type=int, default=int(eval_cfg.get("shap_max_samples", 400)))
+    p.add_argument("--shap-background-size", type=int, default=int(eval_cfg.get("shap_background_size", 100)))
+    p.add_argument("--shap-top-k", type=int, default=int(eval_cfg.get("shap_top_k", 20)))
+    p.add_argument("--shap-random-state", type=int, default=int(eval_cfg.get("shap_random_state", 42)))
     return p.parse_args()
 
 
@@ -68,6 +73,13 @@ def save_plot(fig: plt.Figure, name: str) -> Path:
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def _sample_rows(df, n: int, rng: np.random.Generator):
+    if n <= 0 or len(df) <= n:
+        return df
+    idx = rng.choice(len(df), size=n, replace=False)
+    return df.iloc[idx]
 
 
 def resolve_lineage(args: argparse.Namespace) -> dict[str, Any]:
@@ -140,6 +152,7 @@ def main() -> None:
         mlflow.log_param("holdout_size", len(X))
         mlflow.log_param("model_path", str(args.model))
         mlflow.log_param("meta_path", str(args.meta))
+        mlflow.log_param("with_shap", bool(args.with_shap))
         mlflow.log_metric("holdout_rmse", float(rmse))
         mlflow.log_metric("holdout_r2", float(r2))
 
@@ -202,11 +215,60 @@ def main() -> None:
         fig.tight_layout()
         importance_path = save_plot(fig, "holdout_feature_importance.png")
 
+        shap_beeswarm_path = None
+        shap_bar_path = None
+        shap_importance_path = None
+        if args.with_shap:
+            try:
+                import shap  # pyright: ignore[reportMissingImports]
+            except ImportError as exc:
+                raise ImportError(
+                    "SHAP was requested (--with-shap) but is not installed. "
+                    "Install it (e.g. add 'shap' to requirements and reinstall dependencies)."
+                ) from exc
+
+            print("Computing SHAP explanations...")
+            rng = np.random.default_rng(args.shap_random_state)
+            X_bg = _sample_rows(X, args.shap_background_size, rng)
+            X_eval = _sample_rows(X, args.shap_max_samples, rng)
+
+            mlflow.log_param("shap_max_samples", int(len(X_eval)))
+            mlflow.log_param("shap_background_size", int(len(X_bg)))
+            mlflow.log_param("shap_top_k", int(args.shap_top_k))
+            mlflow.log_param("shap_random_state", int(args.shap_random_state))
+
+            explainer = shap.Explainer(model.predict, X_bg, algorithm="permutation")
+            shap_values = explainer(X_eval)
+
+            shap.plots.beeswarm(shap_values, max_display=args.shap_top_k, show=False)
+            shap_beeswarm_path = save_plot(plt.gcf(), "holdout_shap_beeswarm.png")
+
+            shap.plots.bar(shap_values, max_display=args.shap_top_k, show=False)
+            shap_bar_path = save_plot(plt.gcf(), "holdout_shap_bar_topk.png")
+
+            mean_abs = np.abs(shap_values.values).mean(axis=0)
+            order = np.argsort(mean_abs)[::-1]
+            top = [
+                {
+                    "feature": str(X_eval.columns[i]),
+                    "mean_abs_shap": float(mean_abs[i]),
+                }
+                for i in order[: args.shap_top_k]
+            ]
+            shap_importance_path = PLOTS_DIR / "holdout_shap_importance.json"
+            shap_importance_path.write_text(json.dumps(top, indent=2), encoding="utf-8")
+
         mlflow.log_artifact(str(pred_actual_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(residuals_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(residual_dist_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(qq_path), artifact_path="evaluation_plots")
         mlflow.log_artifact(str(importance_path), artifact_path="evaluation_plots")
+        if shap_beeswarm_path is not None:
+            mlflow.log_artifact(str(shap_beeswarm_path), artifact_path="evaluation_plots")
+        if shap_bar_path is not None:
+            mlflow.log_artifact(str(shap_bar_path), artifact_path="evaluation_plots")
+        if shap_importance_path is not None:
+            mlflow.log_artifact(str(shap_importance_path), artifact_path="evaluation_metrics")
 
         print(f"Plots saved to {PLOTS_DIR}")
 

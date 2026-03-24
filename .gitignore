@@ -11,3 +11,4 @@ mlruns/
 *.tmp
 __pycache__/
 *.pyc
+*.excalidraw
